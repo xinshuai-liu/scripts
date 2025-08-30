@@ -12,8 +12,12 @@
 
 > setupEnvironment.sh
 
-> setSSH.sh
+> installPackages.sh
 
-> git-init.sh
+> setOpenSSH-Server.sh
 
-> docker-install.py
+> setGit.sh
+
+> software/installDocker.py
+
+> software/installDockerCompose.py
