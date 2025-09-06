@@ -8,7 +8,11 @@ set -euo pipefail
 # -----------------------------------------------------------------
 
 
-bash ./setupEnvironment.sh
+sudo bash ./setupEnvironment.sh
+sudo bash ./installPackages.sh
+sudo bash ./setOpenSSH-Server.sh
+bash ./setGit.sh
+
 
 
 # -----------------------------------------------------------------

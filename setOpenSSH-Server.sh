@@ -52,7 +52,7 @@ Port 22
 UsePrivilegeSeparation no
 PasswordAuthentication yes
 PermitRootLogin yes
-AllowUsers xsl  # "xsl" 登陆用户名
+AllowUsers lxs  #  登陆用户名
 
 # ----------------- 以下提前留出公钥配置（可选）-----------------------
 RSAAuthentication yes

@@ -31,13 +31,15 @@ packages=(
 
 for pkg in "${packages[@]}"; do
     
+    echo -ne "安装 ${pkg}    "
+    
     apt-get install -y "${pkg}" > /dev/null
     
     if [ $? -ne 0 ]; then
-        echo -e "${RED}错误：安装 ${pkg}    失败${NC}"
+        echo -e "${RED}失败${NC}"
         exit 1
     else
-        echo -e "安装 ${pkg}    ${GREEN}完成${NC}"
+        echo -e "${GREEN}完成${NC}"
     fi
 done
 

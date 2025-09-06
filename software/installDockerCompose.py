@@ -15,7 +15,18 @@ def install_docker_compose():
         uname_s = common.exec("uname -s").stdout.strip()
         uname_m = common.exec("uname -m").stdout.strip()
         compose_url = f"https://github.com/docker/compose/releases/download/{compose_version}/docker-compose-{uname_s}-{uname_m}"
-        common.exec(f"curl -L {compose_url} -o /usr/local/bin/docker-compose ")
+        max_retries = 3
+        for i in range(max_retries):
+            try:
+                time.sleep(1)
+                common.exec(f"sudo curl -L {compose_url} -o /usr/local/bin/docker-compose ")
+                break
+            except subprocess.CalledProcessError:
+                if i < max_retries - 1:
+                    print(f"docker-compose下载失败，正在重试 ({i+1}/{max_retries})...")
+                    time.sleep(2)
+                else:
+                    raise RuntimeError("请检查网络连接")
         common.exec("chmod +x /usr/local/bin/docker-compose")
         
         # 2. 验证Compose安装
@@ -34,10 +45,10 @@ def install_docker_compose():
 if __name__ == "__main__":
     file_name = os.path.basename(__file__)
 
-    # 需要root权限
-    if os.geteuid() != 0 :
-        print("请使用 sudo 运行此脚本: sudo python3 " + file_name)
-        sys.exit(1)
+    # # 需要root权限
+    # if os.geteuid() != 0 :
+    #     print("请使用 sudo 运行此脚本: sudo python3 " + file_name)
+    #     sys.exit(1)
         
     print("\n" + file_name + " 开始")
 
