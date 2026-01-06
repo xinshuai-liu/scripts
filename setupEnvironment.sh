@@ -3,86 +3,128 @@
 # 设置参数
 set -euo pipefail
 
-source ./common.sh
 
-if [[ $EUID -ne 0 ]]; then
-    echo "错误: 此脚本必须以 root 权限运行" >&2
-    echo "请使用 sudo 运行此脚本: sudo $0" >&2
-    exit 1
-fi
+# ------------------------------------------------------------------------------
+# ---- log function ------------------------------------------------------------
+# ------------------------------------------------------------------------------
+log_error() {
+    echo -e "\033[0;31m[$(date '+%H:%M:%S')] 错误: $1\033[0m" >&2;
+}
+log_success() {
+    echo -e "\033[0;32m[$(date '+%H:%M:%S')] 成功: $1\033[0m";
+}
+log_warn() {
+    echo -e "\033[0;33m[$(date '+%H:%M:%S')] 警告: $1\033[0m";
+}
+log_info() {
+    echo -e "\033[0;34m[$(date '+%H:%M:%S')] 信息: $1\033[0m";
+}
 
-# -------------------------------------------------------------------
-# -------------------------------------------------------- start ----
-# -------------------------------------------------------------------
-echo -e "${GREEN}\n"$0" 开始${NC}"
+backup_config_file() {
+    log_info "正在备份 $1"
+    filename=$(basename "$1")
+    cp -i "$1" "./${filename}.bak.$(date +%Y%m%d-%H%M%S)" 
+    if [ $? -ne 0 ]; then
+        log_error "错误：备份 ${filename} 失败"
+        return 1
+    fi
+}
 
-# [1/3] 更换APT源为南大源（Ubuntu 22.04）
-echo -e "${CYAN}[1/3] 更换APT源为南大源\n${NC}"
+set_mirrors_nju() {
+    tee /etc/apt/sources.list > /dev/null << 'EOF'
+    deb https://mirrors.nju.edu.cn/ubuntu/ jammy main restricted universe multiverse
+    deb-src https://mirrors.nju.edu.cn/ubuntu/ jammy main restricted universe multiverse
 
-# [1/2] 备份 /etc/apt/sources.list
-echo -ne "${MAGENTA}[1/2] 备份 /etc/apt/sources.list    ${NC}"
+    deb https://mirrors.nju.edu.cn/ubuntu/ jammy-security main restricted universe multiverse
+    deb-src https://mirrors.nju.edu.cn/ubuntu/ jammy-security main restricted universe multiverse
 
-cp -i /etc/apt/sources.list /etc/apt/sources.list.bak.$(date +%Y%m%d-%H%M%S) 
-if [ $? -ne 0 ]; then
-    echo "错误：备份sources.list失败"
-    exit 1
-else
-    echo -e "${GREEN}完成${NC}"
-fi
+    deb https://mirrors.nju.edu.cn/ubuntu/ jammy-updates main restricted universe multiverse
+    deb-src https://mirrors.nju.edu.cn/ubuntu/ jammy-updates main restricted universe multiverse
 
-
-# [2/2] 填写资源地址
-echo -ne "${MAGENTA}[2/2] 填写资源地址    ${NC}"
-# exit 1
-
-tee /etc/apt/sources.list > /dev/null << 'EOF'
-# 默认注释了源码仓库，如有需要可自行取消注释
-deb https://mirrors.nju.edu.cn/ubuntu/ jammy main restricted universe multiverse
-deb-src https://mirrors.nju.edu.cn/ubuntu/ jammy main restricted universe multiverse
-
-deb https://mirrors.nju.edu.cn/ubuntu/ jammy-security main restricted universe multiverse
-deb-src https://mirrors.nju.edu.cn/ubuntu/ jammy-security main restricted universe multiverse
-
-deb https://mirrors.nju.edu.cn/ubuntu/ jammy-updates main restricted universe multiverse
-deb-src https://mirrors.nju.edu.cn/ubuntu/ jammy-updates main restricted universe multiverse
-
-deb https://mirrors.nju.edu.cn/ubuntu/ jammy-backports main restricted universe multiverse
-deb-src https://mirrors.nju.edu.cn/ubuntu/ jammy-backports main restricted universe multiverse
-
-# 预发布软件源，不建议启用
-# deb https://mirrors.nju.edu.cn/ubuntu/ jammy-proposed main restricted universe multiverse
-# deb-src https://mirrors.nju.edu.cn/ubuntu/ jammy-proposed main restricted universe multiverse
+    deb https://mirrors.nju.edu.cn/ubuntu/ jammy-backports main restricted universe multiverse
+    deb-src https://mirrors.nju.edu.cn/ubuntu/ jammy-backports main restricted universe multiverse
 EOF
+}
 
-if [ $? -ne 0 ]; then
-    echo -e "${RED}错误：写入新源失败${NC}"
+set_sshd_config() {
+    tee /etc/ssh/sshd_config > /dev/null <<'EOF'
+Port 22
+UsePrivilegeSeparation no
+PasswordAuthentication yes
+PermitRootLogin yes
+AllowUsers lxs  #  登陆用户名
+
+# ----------------- 以下提前留出公钥配置（可选）-----------------------
+RSAAuthentication yes
+PubKeyAUthentication yes
+EOF
+}
+
+# ------------------------------------------------------------------------------
+# ---- start -------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+if [[ $EUID -ne 0 ]]; then
+    log_error "请使用 sudo 运行此脚本: sudo $0"
     exit 1
-else
-    echo -e "${GREEN}完成${NC}"
 fi
 
-# [2/3] 更新软件列表
-echo -e "${CYAN}\n[2/3] 更新软件列表${NC}"
+ping -c 1 -W 3 www.baidu.com > /dev/null 2>&1 || {
+    log_error "网络异常"
+    exit 1
+}
 
+# 更换APT源
+log_info "更换APT源为南大源（Ubuntu 22.04）"
+backup_config_file "/etc/apt/sources.list"
+set_mirrors_nju
+log_success "完成"
+
+log_info "更新软件列表"
 apt-get update
-
-if [ $? -ne 0 ]; then
-    echo "${RED}错误：更新软件列表失败${NC}"
-    exit 1
-else
-    echo -e "${GREEN}完成${NC}"
-fi
-
-# [3/3] 更新软件
-echo -e "${CYAN}\n[3/3] 更新软件${NC}"
-
 apt-get upgrade -y
+log_success "完成"
+
+# 下载软件
+packages=(
+    "vim"
+    "git"
+    "python3"
+    "build-essential" 
+    "man" 
+    "gdb"
+    "cmake"
+    "libreadline-dev"
+    "openssh-server"
+)
+log_info "下载软件 ${packages}"
+for pkg in "${packages[@]}"; do
+    log_info "    安装 ${pkg}    "
+    apt-get install -y "${pkg}" > /dev/null
+    if [ $? -ne 0 ]; then
+        log_error "    失败"
+        continue
+    else
+        log_success "    完成"
+    fi
+done
+log_success "完成"
+
+# OpenSSH-Server 开机自启、修改配置文件、重启
+log_info "OpenSSH-Server 开机自启、修改配置文件、重启"
+
+systemctl enable ssh 2> /dev/null
+systemctl restart ssh
+backup_config_file "/etc/ssh/sshd_config"
+set_sshd_config
+systemctl restart ssh
 
 if [ $? -ne 0 ]; then
-    echo "${RED}错误：更新软件失败${NC}"
+    log_error "失败"
     exit 1
 else
-    echo -e "${GREEN}完成${NC}"
+    log_success "完成"
 fi
-
-echo -e "\n${GREEN}"$0" 结束${NC}\n"
+log_info "注：删除连接者本地的key  （ssh-keygen -R 192.168.10.10）"
+# -----------------------------------------------------------------
+# -------------------------------------------------------- end ----
+# -----------------------------------------------------------------
