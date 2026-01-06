@@ -52,7 +52,7 @@ Port 22
 UsePrivilegeSeparation no
 PasswordAuthentication yes
 PermitRootLogin yes
-AllowUsers lxs  #  登陆用户名
+#AllowUsers   #  登陆用户名
 
 # ----------------- 以下提前留出公钥配置（可选）-----------------------
 RSAAuthentication yes
@@ -96,7 +96,7 @@ packages=(
     "libreadline-dev"
     "openssh-server"
 )
-log_info "下载软件 ${packages}"
+log_info "下载软件 ${packages[*]}"
 for pkg in "${packages[@]}"; do
     log_info "    安装 ${pkg}    "
     apt-get install -y "${pkg}" > /dev/null
